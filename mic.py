@@ -7,7 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1A4uEyBiUL8hWBP1uKrGKP3dhXoonjZg-
 """
 
-!pip install streamlit streamlit-webrtc
+
 
 
 
@@ -36,4 +36,3 @@ if st.button("Start Recording"):
     except sr.RequestError:
         st.error("❌ Could not connect to the recognition service.")
 
-pip install SpeechRecognition
