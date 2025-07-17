@@ -1,46 +1,46 @@
 import streamlit as st
 from fpdf import FPDF
-import subprocess
 import os
 import tempfile
-import pdfkit
+import json
+import zipfile
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import smtplib
 
-# ---------------------- Convert Code Files to PDF (wrapped lines) -----------------------
-def code_to_pdf(code, output_path):
+# ---------------------- Convert Code/Text to PDF -----------------------
+def code_to_pdf(text, output_path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Courier", size=10)
-    for line in code.split('\n'):
+    for line in text.split('\n'):
         while len(line) > 100:
             pdf.cell(0, 5, line[:100], ln=True)
             line = line[100:]
         pdf.cell(0, 5, line, ln=True)
     pdf.output(output_path)
 
-# ---------------------- Convert .ipynb to PDF using nbconvert + pdfkit -----------------------
-def notebook_to_pdf(ipynb_path, output_pdf_path):
+# ---------------------- Extract Code from .ipynb -----------------------
+def notebook_to_text(ipynb_path):
     try:
-        html_path = output_pdf_path.replace(".pdf", ".html")
-        subprocess.run([
-            "jupyter", "nbconvert", "--to", "html",
-            "--output", html_path,
-            ipynb_path
-        ], check=True)
+        with open(ipynb_path, 'r', encoding='utf-8') as f:
+            notebook = json.load(f)
 
-        pdfkit.from_file(html_path, output_pdf_path)
-        return True
+        extracted_code = []
+        for cell in notebook.get("cells", []):
+            if cell.get("cell_type") == "code":
+                extracted_code.append("".join(cell.get("source", [])))
+                extracted_code.append("\n")
+
+        return "\n".join(extracted_code) if extracted_code else "[No code cells found]"
     except Exception as e:
-        st.error(f"❌ Failed to convert notebook {os.path.basename(ipynb_path)}: {e}")
-        return False
+        return f"Failed to parse notebook: {e}"
 
 # ---------------------- Email Sender -----------------------
 def send_email_with_attachment(receiver_email, subject, body, attachments):
     sender_email = "kamarajengg.edu.in@gmail.com"
-    password = "vwvcwsfffbrvumzh"  # Use Gmail App Password (not regular password)
+    password = "vwvcwsfffbrvumzh"
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
@@ -66,13 +66,19 @@ def send_email_with_attachment(receiver_email, subject, body, attachments):
         return False
 
 # ---------------------- Streamlit UI -----------------------
-st.title("📄 Code/Notebook to PDF Converter + Email Sender")
+st.title("📄 Code/Notebook to PDF Converter")
 
 uploaded_files = st.file_uploader("📤 Upload your files (.py, .c, .java, .ipynb)", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
-user_email = st.text_input("📧 Enter your email to receive the PDFs")
 
-if st.button("Convert & Send"):
-    if uploaded_files and user_email:
+delivery_option = st.radio("📤 How would you like to receive your PDFs?", ["Download", "Email"])
+user_email = st.text_input("📧 Enter your email (required only if you choose Email)") if delivery_option == "Email" else None
+
+if st.button("Convert & Process"):
+    if not uploaded_files:
+        st.warning("⚠️ Please upload at least one file.")
+    elif delivery_option == "Email" and not user_email:
+        st.warning("⚠️ Please enter your email address to receive the files.")
+    else:
         temp_dir = tempfile.mkdtemp()
         pdf_paths = []
 
@@ -85,23 +91,31 @@ if st.button("Convert & Send"):
 
             output_pdf_path = os.path.join(temp_dir, filename + ".pdf")
 
-            if filename.endswith(".ipynb"):
-                st.info(f"🔄 Converting notebook: {filename}")
-                if notebook_to_pdf(file_path, output_pdf_path):
-                    pdf_paths.append(output_pdf_path)
-            else:
-                try:
+            try:
+                if filename.endswith(".ipynb"):
+                    st.info(f"🔄 Converting notebook: {filename}")
+                    extracted_text = notebook_to_text(file_path)
+                    code_to_pdf(extracted_text, output_pdf_path)
+                else:
                     code = uploaded_file.getvalue().decode("utf-8", errors="ignore")
                     code_to_pdf(code, output_pdf_path)
-                    pdf_paths.append(output_pdf_path)
-                except Exception as e:
-                    st.error(f"❌ Error converting {filename}: {e}")
+
+                pdf_paths.append(output_pdf_path)
+            except Exception as e:
+                st.error(f"❌ Error converting {filename}: {e}")
 
         if not pdf_paths:
-            st.error("❌ No valid PDFs to send.")
-        elif send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your converted PDFs.", pdf_paths):
-            st.success("✅ Email sent successfully!")
+            st.error("❌ No valid PDFs to process.")
         else:
-            st.error("❌ Email failed.")
-    else:
-        st.warning("⚠️ Please upload at least one file and enter your email.")
+            if delivery_option == "Email":
+                if send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your files.", pdf_paths):
+                    st.success("✅ Email sent successfully!")
+            else:
+                # Zip and offer download
+                zip_path = os.path.join(temp_dir, "converted_files.zip")
+                with zipfile.ZipFile(zip_path, 'w') as zipf:
+                    for pdf in pdf_paths:
+                        zipf.write(pdf, arcname=os.path.basename(pdf))
+
+                with open(zip_path, "rb") as f:
+                    st.download_button("📥 Download All PDFs as ZIP", f, file_name="converted_pdfs.zip")
