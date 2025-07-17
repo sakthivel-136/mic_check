@@ -1,7 +1,7 @@
 import streamlit as st
 from fpdf import FPDF
 from pygments import highlight
-from pygments.lexers import get_lexer_by_name, PythonLexer, CLexer, JavaLexer
+from pygments.lexers import PythonLexer, CLexer, JavaLexer
 from pygments.formatters import HtmlFormatter
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
@@ -11,7 +11,7 @@ import os
 import tempfile
 
 # ---------------------- Convert Code to PDF -----------------------
-def code_to_pdf(code, language, output_path):
+def code_to_pdf(code, output_path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Courier", size=10)
@@ -28,7 +28,7 @@ def detect_language(file_name):
     elif file_name.endswith('.java'):
         return 'java'
     elif file_name.endswith('.ipynb'):
-        return 'json'  # special case
+        return 'json'  # Optional: handle via nbconvert later
     else:
         return 'text'
 
@@ -60,11 +60,11 @@ def send_email_with_attachment(receiver_email, subject, body, attachments):
         st.error(f"Failed to send email: {e}")
         return False
 
-# ---------------------- Streamlit App -----------------------
-st.title("📄 Code to PDF & Mailer App")
+# ---------------------- Streamlit UI -----------------------
+st.title("📄 Code File to PDF & Email Sender")
 
-uploaded_files = st.file_uploader("Upload your code files (.py, .c, .java, .ipynb)", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
-user_email = st.text_input("📧 Enter your email to receive the PDF")
+uploaded_files = st.file_uploader("📤 Upload your code files (.py, .c, .java, .ipynb)", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
+user_email = st.text_input("📧 Enter your email to receive PDFs")
 
 if st.button("Convert & Send"):
     if uploaded_files and user_email:
@@ -72,17 +72,20 @@ if st.button("Convert & Send"):
         pdf_paths = []
 
         for uploaded_file in uploaded_files:
-            code = uploaded_file.read().decode("utf-8")
-            lang = detect_language(uploaded_file.name)
-            output_pdf = os.path.join(temp_dir, uploaded_file.name + ".pdf")
-            code_to_pdf(code, lang, output_pdf)
-            pdf_paths.append(output_pdf)
+            try:
+                code = uploaded_file.getvalue().decode("utf-8", errors="ignore")
+                lang = detect_language(uploaded_file.name)
+                pdf_path = os.path.join(temp_dir, uploaded_file.name + ".pdf")
+                code_to_pdf(code, pdf_path)
+                pdf_paths.append(pdf_path)
+            except Exception as e:
+                st.error(f"Error processing file {uploaded_file.name}: {e}")
 
-        st.success("✅ PDFs generated.")
-
-        if send_email_with_attachment(user_email, "Your Code PDFs", "Here are your converted PDFs.", pdf_paths):
-            st.success("📧 Email sent successfully!")
+        if send_email_with_attachment(user_email, "Your Code PDFs", "Attached are your converted code PDFs.", pdf_paths):
+            st.success("✅ Email sent successfully!")
         else:
-            st.error("❌ Email failed.")
+            st.error("❌ Failed to send email.")
     else:
-        st.warning("Please upload files and enter email.")
+        st.warning("Please upload at least one file and enter your email.")
+
+    
