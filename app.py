@@ -23,11 +23,17 @@ def code_to_pdf(code, output_path):
 # ---------------------- Convert .ipynb to PDF using nbconvert -----------------------
 def notebook_to_pdf(ipynb_path, output_pdf_path):
     try:
-        subprocess.run([
-            "jupyter", "nbconvert", "--to", "pdf",
-            "--output", output_pdf_path,
-            ipynb_path
-        ], check=True)
+        html_path = output_pdf_path.replace(".pdf", ".html")
+subprocess.run([
+    "jupyter", "nbconvert", "--to", "html",
+    "--output", html_path,
+    ipynb_path
+], check=True)
+
+# Convert HTML to PDF
+import pdfkit
+pdfkit.from_file(html_path, output_pdf_path)
+
         return True
     except Exception as e:
         st.error(f"Failed to convert notebook: {e}")
