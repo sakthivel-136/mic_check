@@ -9,11 +9,14 @@ from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import smtplib
 
-# ---------------------- Convert Code/Text to PDF -----------------------
+# ---------------------- Unicode-PDF Generator -----------------------
 def code_to_pdf(text, output_path):
     pdf = FPDF()
+    font_path = "DejaVuSans.ttf"  # Must be in same directory as this file
+    pdf.add_font("Unicode", "", font_path, uni=True)
     pdf.add_page()
-    pdf.set_font("Courier", size=10)
+    pdf.set_font("Unicode", size=10)
+
     for line in text.split('\n'):
         while len(line) > 100:
             pdf.cell(0, 5, line[:100], ln=True)
@@ -21,7 +24,7 @@ def code_to_pdf(text, output_path):
         pdf.cell(0, 5, line, ln=True)
     pdf.output(output_path)
 
-# ---------------------- Extract Code from .ipynb -----------------------
+# ---------------------- Convert .ipynb to Text -----------------------
 def notebook_to_text(ipynb_path):
     try:
         with open(ipynb_path, 'r', encoding='utf-8') as f:
@@ -37,10 +40,10 @@ def notebook_to_text(ipynb_path):
     except Exception as e:
         return f"Failed to parse notebook: {e}"
 
-# ---------------------- Email Sender -----------------------
+# ---------------------- Email PDF Attachments -----------------------
 def send_email_with_attachment(receiver_email, subject, body, attachments):
     sender_email = "kamarajengg.edu.in@gmail.com"
-    password = "vwvcwsfffbrvumzh"
+    password = "vwvcwsfffbrvumzh"  # Gmail app password
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
@@ -66,12 +69,11 @@ def send_email_with_attachment(receiver_email, subject, body, attachments):
         return False
 
 # ---------------------- Streamlit UI -----------------------
-st.title("📄 Code/Notebook to PDF Converter")
+st.title("📄 Code/Notebook to PDF with Emoji Support 🎉")
 
 uploaded_files = st.file_uploader("📤 Upload your files (.py, .c, .java, .ipynb)", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
-
 delivery_option = st.radio("📤 How would you like to receive your PDFs?", ["Download", "Email"])
-user_email = st.text_input("📧 Enter your email (required only if you choose Email)") if delivery_option == "Email" else None
+user_email = st.text_input("📧 Enter your email (only needed if you choose Email)") if delivery_option == "Email" else None
 
 if st.button("Convert & Process"):
     if not uploaded_files:
@@ -108,7 +110,7 @@ if st.button("Convert & Process"):
             st.error("❌ No valid PDFs to process.")
         else:
             if delivery_option == "Email":
-                if send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your files.", pdf_paths):
+                if send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your converted PDFs 🎉", pdf_paths):
                     st.success("✅ Email sent successfully!")
             else:
                 # Zip and offer download
