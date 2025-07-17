@@ -3,30 +3,67 @@ from fpdf import FPDF
 import os
 import tempfile
 import json
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
-from email.mime.text import MIMEText
-import smtplib
+from pygments import highlight
+from pygments.lexers import guess_lexer
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import PythonLexer, CLexer, JavaLexer
 
-# ---------------------- PDF Writer ----------------------
-def code_to_pdf(text, output_path):
+# ---------------------- Code Statistics ----------------------
+def get_code_stats(code):
+    lines = code.splitlines()
+    total_lines = len(lines)
+    blank_lines = sum(1 for l in lines if not l.strip())
+    comment_lines = sum(1 for l in lines if l.strip().startswith("#") or l.strip().startswith("//"))
+    function_defs = sum(1 for l in lines if "def " in l or "function " in l or "void " in l)
+    
+    return {
+        "Total Lines": total_lines,
+        "Blank Lines": blank_lines,
+        "Comment Lines": comment_lines,
+        "Function Definitions": function_defs,
+    }
+
+# ---------------------- PDF Generator with Syntax Highlighting ----------------------
+def code_to_pdf(code, output_path):
+    stats = get_code_stats(code)
+
     pdf = FPDF()
     font_path = "DejaVuSans.ttf"
     pdf.add_font("Unicode", "", font_path, uni=True)
-    pdf.add_page()
     pdf.set_font("Unicode", size=10)
+    pdf.add_page()
 
+    # 📊 Print statistics
+    pdf.set_text_color(0, 0, 255)
+    pdf.multi_cell(0, 8, "📊 Code Statistics:")
     pdf.set_text_color(0, 0, 0)
-    pdf.multi_cell(0, 5, "📄 Code:\n", ln=True)
+    for key, value in stats.items():
+        pdf.multi_cell(0, 8, f"- {key}: {value}")
+    pdf.ln(4)
 
-    for line in text.split('\n'):
+    # 🖍️ Syntax Highlighting
+    try:
+        lexer = guess_lexer(code)
+    except:
+        lexer = PythonLexer()
+
+    formatter = HtmlFormatter(style="colorful", noclasses=True)
+    highlighted_code = highlight(code, lexer, formatter)
+
+    # Remove HTML tags to render as plain text in PDF
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(highlighted_code, "html.parser")
+    stripped_code = soup.get_text()
+
+    for line in stripped_code.splitlines():
         while len(line) > 100:
             pdf.cell(0, 5, line[:100], ln=True)
             line = line[100:]
         pdf.cell(0, 5, line, ln=True)
+
     pdf.output(output_path)
 
-# ---------------------- Notebook to Code Extractor ----------------------
+# ---------------------- Notebook Extractor ----------------------
 def notebook_to_text(ipynb_path):
     try:
         with open(ipynb_path, 'r', encoding='utf-8') as f:
@@ -39,91 +76,18 @@ def notebook_to_text(ipynb_path):
     except Exception as e:
         return f"[❌ Failed to parse notebook: {e}]"
 
-# ---------------------- Email PDF Attachment ----------------------
-def send_email_with_attachment(receiver_email, subject, body, attachments):
-    sender_email = "kamarajengg.edu.in@gmail.com"
-    password = "vwvcwsfffbrvumzh"  # Gmail App Password
-
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = receiver_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-
-    for file_path in attachments:
-        with open(file_path, "rb") as f:
-            part = MIMEApplication(f.read(), Name=os.path.basename(file_path))
-            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
-            msg.attach(part)
-
-    try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, password)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        st.error(f"❌ Email failed: {e}")
-        return False
-
 # ---------------------- Streamlit UI ----------------------
-st.set_page_config(page_title="Team 2 Code to PDF", page_icon="📄")
+st.set_page_config(page_title="Code to PDF (with Stats + Highlighting)", page_icon="📄")
+st.title("📄 Code to PDF Converter with AI-Like Stats")
+st.markdown("### Upload `.py`, `.c`, `.java`, or `.ipynb` files to convert to PDF with line statistics and syntax highlighting.")
 
-# Moving Banner & Style
-st.markdown("""
-<style>
-@keyframes slide {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
-}
-.banner {
-  background: linear-gradient(to right, #a1c4fd, #c2e9fb);
-  padding: 10px;
-  overflow: hidden;
-  white-space: nowrap;
-  font-weight: bold;
-  color: #000;
-  border-radius: 10px;
-  margin-bottom: 20px;
-}
-.banner span {
-  display: inline-block;
-  padding-left: 100%;
-  animation: slide 10s linear infinite;
-}
-.upload-box {
-  border: 2px dashed #aaa;
-  padding: 20px;
-  border-radius: 12px;
-  background-color: #f9f9f9;
-}
-</style>
-<div class="banner">
-  <span>👨‍💻 Team 2 - Sakthi | Priya | John | Aravind 🚀</span>
-</div>
-""", unsafe_allow_html=True)
+uploaded_files = st.file_uploader("📤 Upload your code files", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
 
-st.markdown('<h2 style="text-align:center; color:#2E86C1;">📄 Code to PDF Exporter</h2>', unsafe_allow_html=True)
-
-# File Upload UI
-st.markdown('<div class="upload-box">', unsafe_allow_html=True)
-uploaded_files = st.file_uploader("📤 Upload .py / .c / .java / .ipynb files", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
-st.markdown('</div>', unsafe_allow_html=True)
-
-# Email or Download
-delivery_option = st.radio("📤 Choose delivery method", ["📥 Download", "📧 Email"])
-user_email = st.text_input("📧 Enter your email") if "Email" in delivery_option else None
-
-if st.button("🚀 Convert & Generate PDFs"):
+if st.button("🚀 Convert to PDF"):
     if not uploaded_files:
-        st.warning("⚠️ Please upload at least one file.")
-    elif delivery_option == "📧 Email" and not user_email:
-        st.warning("⚠️ Please enter your email.")
+        st.warning("⚠️ Please upload at least one code file.")
     else:
         temp_dir = tempfile.mkdtemp()
-        pdf_paths = []
-
         for uploaded_file in uploaded_files:
             filename = uploaded_file.name
             file_path = os.path.join(temp_dir, filename)
@@ -137,17 +101,12 @@ if st.button("🚀 Convert & Generate PDFs"):
                     code = notebook_to_text(file_path)
                 else:
                     code = uploaded_file.getvalue().decode("utf-8", errors="ignore")
-                code_to_pdf(code, output_pdf)
-                pdf_paths.append(output_pdf)
 
+                code_to_pdf(code, output_pdf)
                 st.success(f"✅ Converted: {filename}")
                 with open(output_pdf, "rb") as f:
                     st.download_button(
                         f"📥 Download {filename}.pdf", f, file_name=filename + ".pdf", mime="application/pdf"
                     )
             except Exception as e:
-                st.error(f"❌ Error converting {filename}: {e}")
-
-        if delivery_option == "📧 Email" and pdf_paths:
-            if send_email_with_attachment(user_email, "Your PDFs", "Here are your code files in PDF format 🎯", pdf_paths):
-                st.success("📧 Email sent successfully!")
+                st.error(f"❌ Failed to convert {filename}: {e}")
