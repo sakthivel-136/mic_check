@@ -3,36 +3,10 @@ from fpdf import FPDF
 import os
 import tempfile
 import json
-import requests
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import smtplib
-
-# ---------------------- Hugging Face Summarizer ----------------------
-def summarize_code_hf(code):
-    API_URL = "https://api-inference.huggingface.co/models/Salesforce/codet5-base"
-    HF_TOKEN = "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"
-
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    payload = {
-        "inputs": code,
-        "parameters": {"max_length": 60, "do_sample": False},
-    }
-
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
-        result = response.json()
-        st.write("🧠 Hugging Face Raw Response:", result)
-
-        if isinstance(result, list) and 'summary_text' in result[0]:
-            return result[0]['summary_text']
-        elif isinstance(result, dict) and 'error' in result:
-            return f"[HF error: {result['error']}]"
-        else:
-            return "[❌ Unexpected HF output]"
-    except Exception as e:
-        return f"[❌ HF API failed: {e}]"
 
 # ---------------------- PDF Writer ----------------------
 def code_to_pdf(text, output_path):
@@ -42,13 +16,8 @@ def code_to_pdf(text, output_path):
     pdf.add_page()
     pdf.set_font("Unicode", size=10)
 
-    summary = summarize_code_hf(text)
-    st.write("🔍 Summary Used in PDF:", summary)  # 👈 Debug display
-
-    pdf.set_text_color(0, 0, 180)
-    pdf.multi_cell(0, 5, f"🔍 AI Summary:\n{summary}")
     pdf.set_text_color(0, 0, 0)
-    pdf.ln(4)
+    pdf.multi_cell(0, 5, "📄 Code:\n", ln=True)
 
     for line in text.split('\n'):
         while len(line) > 100:
@@ -99,7 +68,7 @@ def send_email_with_attachment(receiver_email, subject, body, attachments):
         return False
 
 # ---------------------- Streamlit UI ----------------------
-st.set_page_config(page_title="Team 2 Code to PDF AI", page_icon="🧾")
+st.set_page_config(page_title="Team 2 Code to PDF", page_icon="📄")
 
 # Moving Banner & Style
 st.markdown("""
@@ -135,7 +104,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown('<h2 style="text-align:center; color:#2E86C1;">📄 AI Code Summarizer & PDF Export</h2>', unsafe_allow_html=True)
+st.markdown('<h2 style="text-align:center; color:#2E86C1;">📄 Code to PDF Exporter</h2>', unsafe_allow_html=True)
 
 # File Upload UI
 st.markdown('<div class="upload-box">', unsafe_allow_html=True)
@@ -180,5 +149,5 @@ if st.button("🚀 Convert & Generate PDFs"):
                 st.error(f"❌ Error converting {filename}: {e}")
 
         if delivery_option == "📧 Email" and pdf_paths:
-            if send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your AI-powered PDFs 🎯", pdf_paths):
+            if send_email_with_attachment(user_email, "Your PDFs", "Here are your code files in PDF format 🎯", pdf_paths):
                 st.success("📧 Email sent successfully!")
