@@ -12,7 +12,7 @@ import smtplib
 # ---------------------- Hugging Face Summarizer ----------------------
 def summarize_code_hf(code):
     API_URL = "https://api-inference.huggingface.co/models/Salesforce/codet5-base"
-    HF_TOKEN = "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"  # Hardcoded as requested
+    HF_TOKEN = "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"
 
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
@@ -21,25 +21,30 @@ def summarize_code_hf(code):
     }
 
     try:
-        response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
         result = response.json()
-        if isinstance(result, list):
+        st.write("🧠 Hugging Face Raw Response:", result)
+
+        if isinstance(result, list) and 'summary_text' in result[0]:
             return result[0]['summary_text']
+        elif isinstance(result, dict) and 'error' in result:
+            return f"[HF error: {result['error']}]"
         else:
-            return "[⚠️ Summary error]"
+            return "[❌ Unexpected HF output]"
     except Exception as e:
-        return f"[❌ AI Summary failed: {e}]"
+        return f"[❌ HF API failed: {e}]"
 
 # ---------------------- PDF Writer ----------------------
 def code_to_pdf(text, output_path):
     pdf = FPDF()
-    font_path = "DejaVuSans.ttf"  # Unicode font
+    font_path = "DejaVuSans.ttf"
     pdf.add_font("Unicode", "", font_path, uni=True)
     pdf.add_page()
     pdf.set_font("Unicode", size=10)
 
     summary = summarize_code_hf(text)
+    st.write("🔍 Summary Used in PDF:", summary)  # 👈 Debug display
+
     pdf.set_text_color(0, 0, 180)
     pdf.multi_cell(0, 5, f"🔍 AI Summary:\n{summary}")
     pdf.set_text_color(0, 0, 0)
@@ -68,7 +73,7 @@ def notebook_to_text(ipynb_path):
 # ---------------------- Email PDF Attachment ----------------------
 def send_email_with_attachment(receiver_email, subject, body, attachments):
     sender_email = "kamarajengg.edu.in@gmail.com"
-    password = "vwvcwsfffbrvumzh"  # Use app password
+    password = "vwvcwsfffbrvumzh"  # Gmail App Password
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
@@ -96,7 +101,7 @@ def send_email_with_attachment(receiver_email, subject, body, attachments):
 # ---------------------- Streamlit UI ----------------------
 st.set_page_config(page_title="Team 2 Code to PDF AI", page_icon="🧾")
 
-# UI Styles + Banner
+# Moving Banner & Style
 st.markdown("""
 <style>
 @keyframes slide {
@@ -132,16 +137,15 @@ st.markdown("""
 
 st.markdown('<h2 style="text-align:center; color:#2E86C1;">📄 AI Code Summarizer & PDF Export</h2>', unsafe_allow_html=True)
 
-# File Upload
+# File Upload UI
 st.markdown('<div class="upload-box">', unsafe_allow_html=True)
 uploaded_files = st.file_uploader("📤 Upload .py / .c / .java / .ipynb files", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Option
-delivery_option = st.radio("📤 How do you want your PDFs?", ["📥 Download", "📧 Email"])
+# Email or Download
+delivery_option = st.radio("📤 Choose delivery method", ["📥 Download", "📧 Email"])
 user_email = st.text_input("📧 Enter your email") if "Email" in delivery_option else None
 
-# Process Button
 if st.button("🚀 Convert & Generate PDFs"):
     if not uploaded_files:
         st.warning("⚠️ Please upload at least one file.")
