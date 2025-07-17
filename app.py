@@ -24,7 +24,7 @@ def code_to_pdf(code, output_path):
 def notebook_to_pdf(ipynb_path, output_pdf_path):
     try:
         html_path = output_pdf_path.replace(".pdf", ".html")
-subprocess.run([
+        subprocess.run([
     "jupyter", "nbconvert", "--to", "html",
     "--output", html_path,
     ipynb_path
