@@ -3,11 +3,12 @@ from fpdf import FPDF
 import subprocess
 import os
 import tempfile
+import pdfkit
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import smtplib
-import pdfkit
+
 # ---------------------- Convert Code Files to PDF (wrapped lines) -----------------------
 def code_to_pdf(code, output_path):
     pdf = FPDF()
@@ -20,27 +21,26 @@ def code_to_pdf(code, output_path):
         pdf.cell(0, 5, line, ln=True)
     pdf.output(output_path)
 
-# ---------------------- Convert .ipynb to PDF using nbconvert -----------------------
+# ---------------------- Convert .ipynb to PDF using nbconvert + pdfkit -----------------------
 def notebook_to_pdf(ipynb_path, output_pdf_path):
     try:
         html_path = output_pdf_path.replace(".pdf", ".html")
         subprocess.run([
-    "jupyter", "nbconvert", "--to", "html",
-    "--output", html_path,
-    ipynb_path
-], check=True)
+            "jupyter", "nbconvert", "--to", "html",
+            "--output", html_path,
+            ipynb_path
+        ], check=True)
 
-pdfkit.from_file(html_path, output_pdf_path)
-
+        pdfkit.from_file(html_path, output_pdf_path)
         return True
     except Exception as e:
-        st.error(f"Failed to convert notebook: {e}")
+        st.error(f"❌ Failed to convert notebook {os.path.basename(ipynb_path)}: {e}")
         return False
 
 # ---------------------- Email Sender -----------------------
 def send_email_with_attachment(receiver_email, subject, body, attachments):
     sender_email = "kamarajengg.edu.in@gmail.com"
-    password = "vwvcwsfffbrvumzh"
+    password = "vwvcwsfffbrvumzh"  # Use Gmail App Password (not regular password)
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
@@ -62,11 +62,11 @@ def send_email_with_attachment(receiver_email, subject, body, attachments):
         server.quit()
         return True
     except Exception as e:
-        st.error(f"Email send failed: {e}")
+        st.error(f"❌ Email send failed: {e}")
         return False
 
 # ---------------------- Streamlit UI -----------------------
-st.title("📄 Code to PDF & Email (with .ipynb Support)")
+st.title("📄 Code/Notebook to PDF Converter + Email Sender")
 
 uploaded_files = st.file_uploader("📤 Upload your files (.py, .c, .java, .ipynb)", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
 user_email = st.text_input("📧 Enter your email to receive the PDFs")
@@ -86,8 +86,8 @@ if st.button("Convert & Send"):
             output_pdf_path = os.path.join(temp_dir, filename + ".pdf")
 
             if filename.endswith(".ipynb"):
-                st.info(f"Converting notebook: {filename}")
-                if notebook_to_pdf(file_path, output_pdf_path.replace(".pdf", "")):
+                st.info(f"🔄 Converting notebook: {filename}")
+                if notebook_to_pdf(file_path, output_pdf_path):
                     pdf_paths.append(output_pdf_path)
             else:
                 try:
@@ -95,13 +95,13 @@ if st.button("Convert & Send"):
                     code_to_pdf(code, output_pdf_path)
                     pdf_paths.append(output_pdf_path)
                 except Exception as e:
-                    st.error(f"Error converting {filename}: {e}")
+                    st.error(f"❌ Error converting {filename}: {e}")
 
         if not pdf_paths:
             st.error("❌ No valid PDFs to send.")
-        elif send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your files.", pdf_paths):
+        elif send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your converted PDFs.", pdf_paths):
             st.success("✅ Email sent successfully!")
         else:
             st.error("❌ Email failed.")
     else:
-        st.warning("Please upload at least one file and enter your email.")
+        st.warning("⚠️ Please upload at least one file and enter your email.")
