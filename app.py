@@ -12,7 +12,7 @@ import smtplib
 # ---------------------- Hugging Face Summarizer ----------------------
 def summarize_code_hf(code):
     API_URL = "https://api-inference.huggingface.co/models/Salesforce/codet5-base"
-    HF_TOKEN = "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" 
+    HF_TOKEN = "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"  # Hardcoded as requested
 
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
@@ -129,3 +129,52 @@ st.markdown("""
   <span>👨‍💻 Team 2 - Sakthi | Priya | John | Aravind 🚀</span>
 </div>
 """, unsafe_allow_html=True)
+
+st.markdown('<h2 style="text-align:center; color:#2E86C1;">📄 AI Code Summarizer & PDF Export</h2>', unsafe_allow_html=True)
+
+# File Upload
+st.markdown('<div class="upload-box">', unsafe_allow_html=True)
+uploaded_files = st.file_uploader("📤 Upload .py / .c / .java / .ipynb files", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Option
+delivery_option = st.radio("📤 How do you want your PDFs?", ["📥 Download", "📧 Email"])
+user_email = st.text_input("📧 Enter your email") if "Email" in delivery_option else None
+
+# Process Button
+if st.button("🚀 Convert & Generate PDFs"):
+    if not uploaded_files:
+        st.warning("⚠️ Please upload at least one file.")
+    elif delivery_option == "📧 Email" and not user_email:
+        st.warning("⚠️ Please enter your email.")
+    else:
+        temp_dir = tempfile.mkdtemp()
+        pdf_paths = []
+
+        for uploaded_file in uploaded_files:
+            filename = uploaded_file.name
+            file_path = os.path.join(temp_dir, filename)
+            with open(file_path, "wb") as f:
+                f.write(uploaded_file.getvalue())
+
+            output_pdf = os.path.join(temp_dir, filename + ".pdf")
+
+            try:
+                if filename.endswith(".ipynb"):
+                    code = notebook_to_text(file_path)
+                else:
+                    code = uploaded_file.getvalue().decode("utf-8", errors="ignore")
+                code_to_pdf(code, output_pdf)
+                pdf_paths.append(output_pdf)
+
+                st.success(f"✅ Converted: {filename}")
+                with open(output_pdf, "rb") as f:
+                    st.download_button(
+                        f"📥 Download {filename}.pdf", f, file_name=filename + ".pdf", mime="application/pdf"
+                    )
+            except Exception as e:
+                st.error(f"❌ Error converting {filename}: {e}")
+
+        if delivery_option == "📧 Email" and pdf_paths:
+            if send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your AI-powered PDFs 🎯", pdf_paths):
+                st.success("📧 Email sent successfully!")
