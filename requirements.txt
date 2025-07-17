@@ -1,4 +1,6 @@
 streamlit
-transformers
-torch
-sentencepiece
+fpdf2
+pygments
+nbconvert
+smtplib
+email
