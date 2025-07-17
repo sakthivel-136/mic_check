@@ -7,7 +7,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import smtplib
-
+import pdfkit
 # ---------------------- Convert Code Files to PDF (wrapped lines) -----------------------
 def code_to_pdf(code, output_path):
     pdf = FPDF()
@@ -30,8 +30,6 @@ def notebook_to_pdf(ipynb_path, output_pdf_path):
     ipynb_path
 ], check=True)
 
-# Convert HTML to PDF
-import pdfkit
 pdfkit.from_file(html_path, output_pdf_path)
 
         return True
