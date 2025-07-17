@@ -1,36 +1,37 @@
 import streamlit as st
 from fpdf import FPDF
-from pygments import highlight
-from pygments.lexers import PythonLexer, CLexer, JavaLexer
-from pygments.formatters import HtmlFormatter
+import subprocess
+import os
+import tempfile
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import smtplib
-import os
-import tempfile
 
-# ---------------------- Convert Code to PDF -----------------------
+# ---------------------- Convert Code Files to PDF (wrapped lines) -----------------------
 def code_to_pdf(code, output_path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Courier", size=10)
     for line in code.split('\n'):
-        pdf.multi_cell(0, 5, line)
+        while len(line) > 100:
+            pdf.cell(0, 5, line[:100], ln=True)
+            line = line[100:]
+        pdf.cell(0, 5, line, ln=True)
     pdf.output(output_path)
 
-# ---------------------- Detect Language by File Extension -----------------------
-def detect_language(file_name):
-    if file_name.endswith('.py'):
-        return 'python'
-    elif file_name.endswith('.c'):
-        return 'c'
-    elif file_name.endswith('.java'):
-        return 'java'
-    elif file_name.endswith('.ipynb'):
-        return 'json'  # Optional: handle via nbconvert later
-    else:
-        return 'text'
+# ---------------------- Convert .ipynb to PDF using nbconvert -----------------------
+def notebook_to_pdf(ipynb_path, output_pdf_path):
+    try:
+        subprocess.run([
+            "jupyter", "nbconvert", "--to", "pdf",
+            "--output", output_pdf_path,
+            ipynb_path
+        ], check=True)
+        return True
+    except Exception as e:
+        st.error(f"Failed to convert notebook: {e}")
+        return False
 
 # ---------------------- Email Sender -----------------------
 def send_email_with_attachment(receiver_email, subject, body, attachments):
@@ -57,14 +58,14 @@ def send_email_with_attachment(receiver_email, subject, body, attachments):
         server.quit()
         return True
     except Exception as e:
-        st.error(f"Failed to send email: {e}")
+        st.error(f"Email send failed: {e}")
         return False
 
 # ---------------------- Streamlit UI -----------------------
-st.title("📄 Code File to PDF & Email Sender")
+st.title("📄 Code to PDF & Email (with .ipynb Support)")
 
-uploaded_files = st.file_uploader("📤 Upload your code files (.py, .c, .java, .ipynb)", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
-user_email = st.text_input("📧 Enter your email to receive PDFs")
+uploaded_files = st.file_uploader("📤 Upload your files (.py, .c, .java, .ipynb)", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
+user_email = st.text_input("📧 Enter your email to receive the PDFs")
 
 if st.button("Convert & Send"):
     if uploaded_files and user_email:
@@ -72,20 +73,31 @@ if st.button("Convert & Send"):
         pdf_paths = []
 
         for uploaded_file in uploaded_files:
-            try:
-                code = uploaded_file.getvalue().decode("utf-8", errors="ignore")
-                lang = detect_language(uploaded_file.name)
-                pdf_path = os.path.join(temp_dir, uploaded_file.name + ".pdf")
-                code_to_pdf(code, pdf_path)
-                pdf_paths.append(pdf_path)
-            except Exception as e:
-                st.error(f"Error processing file {uploaded_file.name}: {e}")
+            filename = uploaded_file.name
+            file_path = os.path.join(temp_dir, filename)
 
-        if send_email_with_attachment(user_email, "Your Code PDFs", "Attached are your converted code PDFs.", pdf_paths):
+            with open(file_path, "wb") as f:
+                f.write(uploaded_file.getvalue())
+
+            output_pdf_path = os.path.join(temp_dir, filename + ".pdf")
+
+            if filename.endswith(".ipynb"):
+                st.info(f"Converting notebook: {filename}")
+                if notebook_to_pdf(file_path, output_pdf_path.replace(".pdf", "")):
+                    pdf_paths.append(output_pdf_path)
+            else:
+                try:
+                    code = uploaded_file.getvalue().decode("utf-8", errors="ignore")
+                    code_to_pdf(code, output_pdf_path)
+                    pdf_paths.append(output_pdf_path)
+                except Exception as e:
+                    st.error(f"Error converting {filename}: {e}")
+
+        if not pdf_paths:
+            st.error("❌ No valid PDFs to send.")
+        elif send_email_with_attachment(user_email, "Your Converted PDFs", "Here are your files.", pdf_paths):
             st.success("✅ Email sent successfully!")
         else:
-            st.error("❌ Failed to send email.")
+            st.error("❌ Email failed.")
     else:
         st.warning("Please upload at least one file and enter your email.")
-
-    
