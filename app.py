@@ -4,7 +4,7 @@ import os
 import tempfile
 import json
 from pygments import highlight
-from pygments.lexers import guess_lexer, PythonLexer
+from pygments.lexers import get_lexer_for_filename, guess_lexer, PythonLexer
 from pygments.formatters import HtmlFormatter
 from bs4 import BeautifulSoup
 from email.mime.multipart import MIMEMultipart
@@ -12,7 +12,17 @@ from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 import smtplib
 
-# ------------------ PDF Writer ------------------
+# ------------------ Detect best lexer ------------------
+def detect_lexer(filename, code):
+    try:
+        return get_lexer_for_filename(filename, code)
+    except:
+        try:
+            return guess_lexer(code)
+        except:
+            return PythonLexer()
+
+# ------------------ Get code statistics ------------------
 def get_code_stats(code):
     lines = code.splitlines()
     return {
@@ -22,7 +32,8 @@ def get_code_stats(code):
         "Function Definitions": sum(1 for l in lines if any(k in l for k in ['def ', 'void ', 'function ']))
     }
 
-def code_to_pdf(code, output_path):
+# ------------------ PDF Generator ------------------
+def code_to_pdf(filename, code, output_path):
     stats = get_code_stats(code)
     pdf = FPDF()
     font_path = "DejaVuSans.ttf"
@@ -39,13 +50,9 @@ def code_to_pdf(code, output_path):
     pdf.ln(4)
 
     # Highlight code
-    try:
-        lexer = guess_lexer(code)
-    except:
-        lexer = PythonLexer()
+    lexer = detect_lexer(filename, code)
     formatter = HtmlFormatter(style="colorful", noclasses=True)
     highlighted_html = highlight(code, lexer, formatter)
-
     soup = BeautifulSoup(highlighted_html, "html.parser")
     clean_text = soup.get_text()
 
@@ -57,7 +64,7 @@ def code_to_pdf(code, output_path):
 
     pdf.output(output_path)
 
-# ------------------ Extract Code from Notebook ------------------
+# ------------------ Extract from Notebook ------------------
 def notebook_to_text(ipynb_path):
     try:
         with open(ipynb_path, 'r', encoding='utf-8') as f:
@@ -66,7 +73,7 @@ def notebook_to_text(ipynb_path):
     except Exception as e:
         return f"[Error parsing notebook: {e}]"
 
-# ------------------ Email Function ------------------
+# ------------------ Email Sender ------------------
 def send_email(receiver_email, files):
     sender_email = "kamarajengg.edu.in@gmail.com"
     password = "vwvcwsfffbrvumzh"
@@ -96,7 +103,8 @@ def send_email(receiver_email, files):
 
 # ------------------ Streamlit UI ------------------
 st.set_page_config(page_title="Code to PDF - Email or Download", page_icon="📄")
-st.title("📄 Code to PDF Converter with Stats & Syntax Highlighting")
+st.title("📄 Code to PDF Converter with Stats & Highlighting")
+st.markdown("✅ Upload `.py`, `.c`, `.java`, or `.ipynb` files. Choose to download or receive via email.")
 
 uploaded_files = st.file_uploader("📤 Upload code files", type=["py", "c", "java", "ipynb"], accept_multiple_files=True)
 
@@ -115,6 +123,7 @@ if st.button("🚀 Convert Now"):
         for uploaded_file in uploaded_files:
             filename = uploaded_file.name
             file_path = os.path.join(temp_dir, filename)
+
             with open(file_path, "wb") as f:
                 f.write(uploaded_file.getvalue())
 
@@ -124,7 +133,7 @@ if st.button("🚀 Convert Now"):
                 code = uploaded_file.getvalue().decode("utf-8", errors="ignore")
 
             pdf_output = os.path.join(temp_dir, filename + ".pdf")
-            code_to_pdf(code, pdf_output)
+            code_to_pdf(filename, code, pdf_output)
             pdf_paths.append(pdf_output)
 
         if choice == "📧 Email":
@@ -134,5 +143,6 @@ if st.button("🚀 Convert Now"):
             for path in pdf_paths:
                 with open(path, "rb") as f:
                     st.download_button(
-                        f"📥 Download {os.path.basename(path)}", f, file_name=os.path.basename(path), mime="application/pdf"
+                        f"📥 Download {os.path.basename(path)}", f,
+                        file_name=os.path.basename(path), mime="application/pdf"
                     )
