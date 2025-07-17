@@ -107,4 +107,25 @@ st.markdown("""
   background: linear-gradient(to right, #a1c4fd, #c2e9fb);
   padding: 10px;
   overflow: hidden;
-  white-s
+  white-space: nowrap;
+  font-weight: bold;
+  color: #000;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.banner span {
+  display: inline-block;
+  padding-left: 100%;
+  animation: slide 10s linear infinite;
+}
+.upload-box {
+  border: 2px dashed #aaa;
+  padding: 20px;
+  border-radius: 12px;
+  background-color: #f9f9f9;
+}
+</style>
+<div class="banner">
+  <span>👨‍💻 Team 2 - Sakthi | Priya | John | Aravind 🚀</span>
+</div>
+""", unsafe_allow_html=True)
