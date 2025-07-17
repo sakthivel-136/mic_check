@@ -95,7 +95,7 @@ st.markdown("""
 }
 </style>
 <div class="banner">
-  <span>👨‍💻 Team 2 - Sakthi | Priya | John | Aravind 🚀</span>
+  <span>👨‍💻 Team 2 -Ananth alias(kanammaa)| Sakthi | lognath | hemanth | harish 🚀</span>
 </div>
 """, unsafe_allow_html=True)
 
