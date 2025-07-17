@@ -35,7 +35,7 @@ def detect_language(file_name):
 # ---------------------- Email Sender -----------------------
 def send_email_with_attachment(receiver_email, subject, body, attachments):
     sender_email = "kamarajengg.edu.in@gmail.com"
-    password = "qwerty12345"
+    password = "vwvcwsfffbrvumzh"
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
